@@ -9,8 +9,8 @@ USERNAME = "soc.phishing.test@gmail.com"
 APP_PASSWORD = "vmhzdqmasrerzgyb" 
 IMAP_SERVER = "imap.gmail.com"
 
-# 1. Danh sách trắng (Whitelist)
-WHITELIST = ['google.com', 'microsoft.com']
+# 1. Danh sách trắng (Whitelist) - Đã làm rỗng để BẮT TẤT CẢ (kể cả google.com)
+WHITELIST = []
 # 2. Từ khóa nhận diện thư quảng cáo/spam hợp pháp
 SPAM_KEYWORDS = ['unsubscribe', 'hủy đăng ký', 'từ chối nhận', 'opt out', 'view in browser']
 
@@ -76,13 +76,24 @@ def get_unread_emails_and_extract_iocs():
                         continue
 
                     # 4. TRÍCH XUẤT URL & IP
-                    # Regex cho URL
-                    urls = set(re.findall(r'(https?://[^\s<>"\']+)', body))
+                    # Regex NÂNG CẤP: Bắt cả link có http/https và link trần (như retajconsultancy.com)
+                    url_pattern = r'(?:https?://)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:/[^\s<>"\']*)?'
+                    raw_urls = set(re.findall(url_pattern, body))
+                    
+                    valid_urls = set()
+                    for u in raw_urls:
+                        # Gọt bỏ các dấu câu thừa ở cuối
+                        u = u.rstrip(".,;:]")
+                        # Nếu là link trần, tự động thêm http:// để VirusTotal quét được
+                        if not u.startswith('http'):
+                            u = "http://" + u
+                        valid_urls.add(u)
+
                     # Regex cho IPv4 trần
                     ips = set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', body))
                     
-                    # Làm sạch URL và lọc Whitelist
-                    clean_urls = [u.rstrip(".,;:]") for u in urls if not any(sd in u for sd in WHITELIST)]
+                    # Lọc Whitelist (hiện tại rỗng nên lấy hết)
+                    clean_urls = [u for u in valid_urls if not any(sd in u for sd in WHITELIST)]
 
                     # Gói dữ liệu (IOCs)
                     if clean_urls or ips or attachments_hashes:
