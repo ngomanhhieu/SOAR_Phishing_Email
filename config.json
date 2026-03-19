@@ -1,5 +1,11 @@
 {
     "virustotal_api_key": "da4c55b552c0c3e834f2d6307c6ebb37f63e3eb3b85f176437e39b0255d484c2",
     "telegram_bot_token": "8677078631:AAFsYmv2iyvNICuf2x3HUl9rwyWpdihe2Gk",
-    "telegram_chat_id": "-5216236878" 
+    "telegram_chat_id": "-5216236878", 
+
+    "email": {
+        "username": "soc.phishing.test@gmail.com",
+        "app_password": "vmhzdqmasrerzgyb",
+        "imap_server": "imap.gmail.com"
+    }
 }
