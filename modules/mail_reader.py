@@ -109,7 +109,8 @@ def get_unread_emails_and_extract_iocs():
                             "sender": sender,
                             "urls": clean_urls,
                             "ips": list(ips),
-                            "file_hashes": attachments_hashes
+                            "file_hashes": attachments_hashes,
+                            "msg_object": msg
                         })
                         mail.store(e_id, '+FLAGS', '\\Seen')
 
