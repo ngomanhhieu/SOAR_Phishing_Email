@@ -2,11 +2,7 @@ import dns.resolver
 import re
 from email.utils import parseaddr
 
-# ─────────────────────────────────────────
-# TIỆN ÍCH
-# ─────────────────────────────────────────
 def extract_domain(sender: str) -> str:
-    """'John Doe <john@evil.com>' hoặc 'john@evil.com' → 'evil.com'"""
     _, addr = parseaddr(sender)
     if not addr:
         addr = sender
@@ -21,15 +17,7 @@ def _query_txt(domain: str) -> list:
     except Exception:
         return []
 
-# ─────────────────────────────────────────
-# TẦNG 2: ĐỌC HEADER EMAIL (mail server đã check sẵn)
-# ─────────────────────────────────────────
 def extract_auth_from_header(msg) -> dict:
-    """
-    Đọc Authentication-Results header do Gmail/mail server ghi sẵn.
-    Đây là kết quả THỰC TẾ email này có pass xác thực không.
-    """
-    # Thử nhiều header khác nhau (Gmail, Outlook, v.v.)
     auth_header = (
         msg.get("Authentication-Results", "") or
         msg.get("ARC-Authentication-Results", "") or
@@ -54,7 +42,7 @@ def extract_auth_from_header(msg) -> dict:
     elif fail_count == 1:
         risk = "MEDIUM"
     elif not_found >= 2:
-        risk = "LOW"       # Header không có → không xác nhận được
+        risk = "LOW"    
     else:
         risk = "SAFE"
 
@@ -69,9 +57,6 @@ def extract_auth_from_header(msg) -> dict:
         "raw_header": auth_header[:300] if auth_header else "Không có header"
     }
 
-# ─────────────────────────────────────────
-# TẦNG 1: DNS LOOKUP (kiểm tra cấu hình domain)
-# ─────────────────────────────────────────
 def check_spf(domain: str) -> dict:
     records = _query_txt(domain)
     spf_records = [r for r in records if r.lower().startswith("v=spf1")]
@@ -165,24 +150,12 @@ def check_dns_auth(sender: str) -> dict:
         "dkim":         dkim
     }
 
-# ─────────────────────────────────────────
-# HÀM TỔNG HỢP — gọi từ main.py
-# ─────────────────────────────────────────
 def check_email_authentication(sender: str, msg=None) -> dict:
-    """
-    Kết hợp cả 2 tầng:
-      - Tầng 2 (Header): nếu có msg object → đọc kết quả thực tế từ header
-      - Tầng 1 (DNS):    luôn chạy để kiểm tra cấu hình domain
-    """
-    print(f"\n   [*] Bắt đầu kiểm tra Email Authentication cho: {sender}")
-
+    print(f"\n [*] Bắt đầu kiểm tra Email Authentication cho: {sender}")
     header_result = None
     if msg is not None:
         header_result = extract_auth_from_header(msg)
-
     dns_result = check_dns_auth(sender)
-
-    # Tính overall risk kết hợp (lấy mức cao hơn)
     risk_level = {"SAFE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
     r1 = risk_level.get(header_result["overall_risk"], 0) if header_result else 0
     r2 = risk_level.get(dns_result.get("overall_risk", "SAFE"), 0)
@@ -192,12 +165,10 @@ def check_email_authentication(sender: str, msg=None) -> dict:
     return {
         "sender":        sender,
         "combined_risk": combined_risk_str,
-        "header_check":  header_result,   # None nếu không có msg
+        "header_check":  header_result,   
         "dns_check":     dns_result
     }
 
-
-# Test độc lập
 if __name__ == "__main__":
     import json
     result = check_email_authentication("test@gmail.com")
