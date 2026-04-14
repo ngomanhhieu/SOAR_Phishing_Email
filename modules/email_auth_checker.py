@@ -3,9 +3,6 @@ import re
 import ipaddress
 from email.utils import parseaddr
 
-# ─────────────────────────────────────────
-# TIỆN ÍCH
-# ─────────────────────────────────────────
 def extract_domain(sender: str) -> str:
     _, addr = parseaddr(sender)
     if not addr:
@@ -21,9 +18,6 @@ def _query_txt(domain: str) -> list:
     except Exception:
         return []
 
-# ─────────────────────────────────────────
-# THÊM MỚI: Lấy IP thực tế từ header
-# ─────────────────────────────────────────
 def extract_sender_ip(msg) -> str:
     """
     Lấy IP thực sự của server đã gửi email từ Received headers.
@@ -38,7 +32,7 @@ def extract_sender_ip(msg) -> str:
     if not received_headers:
         return ""
 
-    # Lấy header cuối cùng = server gốc (các header được thêm từ dưới lên)
+    # Lấy header cuối cùng = server gốc
     last_received = received_headers[-1]
 
     # Tìm IP trong dấu ngoặc vuông: [1.2.3.4]
@@ -47,9 +41,6 @@ def extract_sender_ip(msg) -> str:
         return match.group(1)
     return ""
 
-# ─────────────────────────────────────────
-# THÊM MỚI: Parse và kiểm tra IP trong SPF
-# ─────────────────────────────────────────
 def _resolve_spf_ips(spf_record: str, domain: str, depth: int = 0) -> list:
     """
     Bóc tách TẤT CẢ IP được phép từ SPF record, bao gồm:
@@ -65,7 +56,6 @@ def _resolve_spf_ips(spf_record: str, domain: str, depth: int = 0) -> list:
         return []
 
     allowed_networks = []
-
     # 1. ip4:x.x.x.x hoặc ip4:x.x.x.x/24
     for match in re.finditer(r'ip4:([\d./]+)', spf_record):
         try:
@@ -74,8 +64,7 @@ def _resolve_spf_ips(spf_record: str, domain: str, depth: int = 0) -> list:
         except ValueError:
             pass
 
-    # 2. ip6 (bỏ qua trong hầu hết trường hợp phishing thực tế,
-    #    nhưng vẫn parse để đầy đủ)
+    # 2. ip6 
     for match in re.finditer(r'ip6:([a-fA-F0-9:/]+)', spf_record):
         try:
             net = ipaddress.ip_network(match.group(1), strict=False)
@@ -83,7 +72,7 @@ def _resolve_spf_ips(spf_record: str, domain: str, depth: int = 0) -> list:
         except ValueError:
             pass
 
-    # 3. include:domain → Đệ quy lấy SPF của domain đó
+    # 3. include:domain 
     for match in re.finditer(r'include:(\S+)', spf_record):
         included_domain = match.group(1)
         records = _query_txt(included_domain)
@@ -92,7 +81,7 @@ def _resolve_spf_ips(spf_record: str, domain: str, depth: int = 0) -> list:
                 sub_nets = _resolve_spf_ips(r, included_domain, depth + 1)
                 allowed_networks.extend(sub_nets)
 
-    # 4. a:domain hoặc chỉ "a" → lấy A record của domain hiện tại
+    # 4. a:domain hoặc chỉ "a" lấy A record của domain hiện tại
     a_match = re.findall(r'\ba(?::(\S+))?\b', spf_record)
     for a_domain in a_match:
         target = a_domain if a_domain else domain
@@ -104,7 +93,7 @@ def _resolve_spf_ips(spf_record: str, domain: str, depth: int = 0) -> list:
         except Exception:
             pass
 
-    # 5. mx:domain hoặc chỉ "mx" → lấy IP của MX record
+    # 5. mx:domain hoặc chỉ "mx" lấy IP của MX record
     mx_match = re.findall(r'\bmx(?::(\S+))?\b', spf_record)
     for mx_domain in mx_match:
         target = mx_domain if mx_domain else domain
@@ -141,7 +130,7 @@ def _check_ip_in_spf(sender_ip: str, spf_record: str, domain: str) -> dict:
                 "matched": str(net)
             }
 
-    # Không khớp → kiểm tra policy cuối record
+    # Không khớp kiểm tra policy cuối record
     if "-all" in spf_record:
         verdict = "FAIL"
         reason  = f"IP {sender_ip} không được authorize, policy: -all (reject)"
@@ -160,17 +149,7 @@ def _check_ip_in_spf(sender_ip: str, spf_record: str, domain: str) -> dict:
 
     return {"result": verdict, "reason": reason, "matched": None}
 
-
-# ─────────────────────────────────────────
-# VIẾT LẠI: check_spf() có kiểm tra IP
-# ─────────────────────────────────────────
 def check_spf(domain: str, sender_ip: str = "") -> dict:
-    """
-    Kiểm tra SPF đầy đủ:
-    1. Tìm SPF record trong DNS
-    2. Nếu có sender_ip → kiểm tra IP có được authorize không
-    3. Nếu không có sender_ip → chỉ đánh giá policy (như cũ)
-    """
     records = _query_txt(domain)
     spf_records = [r for r in records if r.lower().startswith("v=spf1")]
 
@@ -183,13 +162,12 @@ def check_spf(domain: str, sender_ip: str = "") -> dict:
         }
 
     record = spf_records[0]
-
-    # Có IP thực tế → kiểm tra IP đầy đủ
+    # Có IP thực tế kiểm tra IP đầy đủ
     if sender_ip:
         ip_result = _check_ip_in_spf(sender_ip, record, domain)
         verdict   = ip_result["result"]
 
-        # Map verdict → status
+        # Map verdict status
         status_map = {
             "PASS":     "PASS",
             "FAIL":     "FAIL",
@@ -209,7 +187,7 @@ def check_spf(domain: str, sender_ip: str = "") -> dict:
             "ip_check": sender_ip
         }
 
-    # Không có IP → fallback đánh giá policy như cũ
+    # Không có IP fallback đánh giá policy như cũ
     if "+all" in record:
         status, policy = "FAIL", "+all (cho phép mọi IP — nguy hiểm)"
     elif "-all" in record:
@@ -229,10 +207,6 @@ def check_spf(domain: str, sender_ip: str = "") -> dict:
         "reason":   "Không có IP sender để verify đầy đủ"
     }
 
-
-# ─────────────────────────────────────────
-# TẦNG 2: Đọc header (giữ nguyên)
-# ─────────────────────────────────────────
 def extract_auth_from_header(msg) -> dict:
     auth_header = (
         msg.get("Authentication-Results", "") or
@@ -264,10 +238,6 @@ def extract_auth_from_header(msg) -> dict:
         "raw_header": auth_header[:300] if auth_header else "Không có header"
     }
 
-
-# ─────────────────────────────────────────
-# TẦNG 1: DNS Lookup (cập nhật check_spf)
-# ─────────────────────────────────────────
 def check_dmarc(domain: str) -> dict:
     records      = _query_txt(f"_dmarc.{domain}")
     dmarc_records = [r for r in records if r.upper().startswith("V=DMARC1")]
@@ -316,7 +286,7 @@ def check_dns_auth(sender: str, sender_ip: str = "") -> dict:
     print(f"   [Tầng 1 - DNS] Kiểm tra domain: {domain}"
           + (f" | sender IP: {sender_ip}" if sender_ip else " | (không có IP)"))
 
-    spf   = check_spf(domain, sender_ip)   # ← truyền IP vào
+    spf   = check_spf(domain, sender_ip)  
     dmarc = check_dmarc(domain)
     dkim  = check_dkim(domain)
 
@@ -335,10 +305,6 @@ def check_dns_auth(sender: str, sender_ip: str = "") -> dict:
         "spf": spf, "dmarc": dmarc, "dkim": dkim
     }
 
-
-# ─────────────────────────────────────────
-# HÀM TỔNG HỢP
-# ─────────────────────────────────────────
 def check_email_authentication(sender: str, msg=None) -> dict:
     print(f"\n   [*] Kiểm tra Email Authentication: {sender}")
 
@@ -362,10 +328,6 @@ def check_email_authentication(sender: str, msg=None) -> dict:
         "dns_check":     dns_result
     }
 
-
-# ─────────────────────────────────────────
-# TEST
-# ─────────────────────────────────────────
 if __name__ == "__main__":
     import json
 
