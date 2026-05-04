@@ -110,7 +110,8 @@ def get_unread_emails_and_extract_iocs():
                             "urls": clean_urls,
                             "ips": list(ips),
                             "file_hashes": attachments_hashes,
-                            "msg_object": msg
+                            "msg_object": msg,
+                            "body": body,
                         })
                         mail.store(e_id, '+FLAGS', '\\Seen')
 
@@ -126,3 +127,21 @@ if __name__ == "__main__":
     print("\n[✓] DANH SÁCH IOCs CHUYỂN CHO SINH VIÊN B:")
     import json
     print(json.dumps(results, indent=4, ensure_ascii=False))
+
+
+def delete_phishing_email(email_id):
+    """
+    Hàm tự động truy cập lại vào Gmail và dán nhãn Thùng rác (\Trash) cho thư lừa đảo.
+    """
+    try:
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+        mail.login(USERNAME, APP_PASSWORD)
+        mail.select("inbox")
+        
+        # Cú pháp ĐẶC TRỊ của Gmail: Ép dán nhãn Thùng rác vào bức thư
+        mail.store(email_id, '+X-GM-LABELS', '\\Trash')
+        
+        mail.logout()
+        print(f" Đã xóa email lừa đảo thành công!")
+    except Exception as e:
+        print(f" Lỗi khi cách ly email: {e}")
