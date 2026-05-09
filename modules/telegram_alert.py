@@ -79,40 +79,47 @@ def send_typosquatting_alert(email: str, typo_result: dict):
     return ok
 
 
-#3. Combined Alert (Typo + VT cùng 1 URL)
 def send_combined_alert(email: str, url: str, vt_score: int, typo_result: dict = None):
-    timestamp  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    has_typo   = typo_result and typo_result.get("risk_level") in ("LOW", "MEDIUM", "HIGH")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    has_typo  = typo_result and typo_result.get("risk_level") in ("LOW", "MEDIUM", "HIGH")
 
     # Tính severity tổng hợp
-    typo_risk  = typo_result.get("risk_level", "SAFE") if typo_result else "SAFE"
-    risk_rank  = {"SAFE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
-    combined   = max(
+    typo_risk = typo_result.get("risk_level", "SAFE") if typo_result else "SAFE"
+    risk_rank = {"SAFE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
+    combined  = max(
         risk_rank.get(typo_risk, 0),
         3 if vt_score >= 10 else 2 if vt_score >= 5 else 1 if vt_score > 0 else 0
     )
     risk_str   = {0: "SAFE", 1: "LOW", 2: "MEDIUM", 3: "HIGH"}[combined]
-    risk_emoji = {"HIGH": "", "MEDIUM": "", "LOW": "", "SAFE": ""}[risk_str]
+    risk_emoji = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢", "SAFE": "✅"}[risk_str]
 
     # Phần VirusTotal
     vt_section = (
-        f"*VirusTotal:* `{vt_score}` engines báo độc hại\n"
+        f"*🔬 VirusTotal:* `{vt_score}` engines báo độc hại\n"
         if vt_score > 0
-        else "*VirusTotal:*Sạch\n"
+        else "*🔬 VirusTotal:* ✅ Sạch\n"
     )
 
-    # Phần Typosquatting
+    # Phần Typosquatting — hiển thị chi tiết 4 thành phần
     typo_section = ""
     if has_typo:
+        detail = typo_result.get("detail_scores", {})
+        total  = typo_result.get("total_score", 0)
+        homoglyph_flag = "⚠️ Homoglyph detected" if typo_result.get("has_homoglyph") else ""
+
         typo_section = (
-            f"\n*Typosquatting:*\n"
+            f"\n*🕵️ Typosquatting:*\n"
             f"  Domain: `{typo_result['domain']}`\n"
-            f"  Giống: `{typo_result.get('similar_to', 'N/A')}` "
-            f"(`{typo_result.get('similarity_score', 0)}%`)\n"
+            f"  Giống: `{typo_result.get('similar_to', 'N/A')}`\n"
+            f"  Tổng score: `{total:.2f}` {homoglyph_flag}\n"
+            f"  ┌ Edit Distance : `{detail.get('edit_distance', 0):.2f}`\n"
+            f"  ├ Homoglyph     : `{detail.get('homoglyph', 0):.2f}`\n"
+            f"  ├ Keyboard      : `{detail.get('keyboard', 0):.2f}`\n"
+            f"  └ Phonetic      : `{detail.get('phonetic', 0):.2f}`\n"
         )
 
     message = (
-        f"*THREAT ALERT*\n\n"
+        f"🚨 *THREAT ALERT*\n\n"
         f"*Sender:* `{email}`\n"
         f"*URL:* `{url}`\n\n"
         f"{vt_section}"
