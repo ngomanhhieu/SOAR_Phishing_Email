@@ -3,8 +3,8 @@ from modules import vt_scanner
 from modules import telegram_alert
 from modules import typosquatting_scanner
 from modules import email_authentication_checker as email_auth_checker
+from modules import ai_analyzer
 import time
-from datetime import datetime
 
 def run_soar_pipeline():
     print("\n" + "="*50)
@@ -19,6 +19,7 @@ def run_soar_pipeline():
     for incident in incidents:
         sender_email = incident['sender']
         msg_object   = incident.get('msg_object')
+        email_id     = incident.get('email_id')      # ← để xử lý thùng rác
         print(f"\nĐANG PHÂN TÍCH SỰ CỐ TỪ: {sender_email}")
         print("-" * 50)
 
@@ -26,6 +27,7 @@ def run_soar_pipeline():
         total_vt_threats   = 0
         total_typo_threats = 0
         total_auth_threats = 0
+        total_ai_threats   = 0
 
         # ══ GIAI ĐOẠN 0: SPF / DKIM / DMARC ════════════════════
         print("\n[Giai đoạn 0] Kiểm tra Email Authentication...")
@@ -41,15 +43,13 @@ def run_soar_pipeline():
         print("\n[Giai đoạn 1] Quét URLs...")
         for url in incident.get('urls', []):
 
-            # 1a. Typosquatting — KHÔNG còn truyền threshold
+            # 1a. Typosquatting — ensemble model, không cần threshold
             typo_result = typosquatting_scanner.scan_typosquatting(url)
 
             # 1b. VirusTotal
             vt_score = vt_scanner.scan_ioc("url", url)
             time.sleep(15)
 
-            # 1c. Đánh giá kết quả
-            # Output mới dùng "risk_level" thay vì threshold
             has_typo = typo_result.get("risk_level") in ("LOW", "MEDIUM", "HIGH")
             has_vt   = vt_score > 0
 
@@ -59,7 +59,6 @@ def run_soar_pipeline():
                     total_typo_threats += 1
                 if has_vt:
                     total_vt_threats += 1
-
                 telegram_alert.send_combined_alert(
                     email       = sender_email,
                     url         = url,
@@ -89,20 +88,47 @@ def run_soar_pipeline():
                 )
             time.sleep(15)
 
-        # ══ KẾT LUẬN ════════════════════════════════════════════
+        # ══ GIAI ĐOẠN 4: AI Gemini phân tích nội dung ══════════
+        print("\n[Giai đoạn 4] AI Gemini đang phân tích nội dung...")
+        body = incident.get('body', '')
+        if body:
+            ai_result = ai_analyzer.analyze_email_intent(body)
+            if ai_result.get('is_phishing'):
+                is_safe = False
+                total_ai_threats += 1
+                print(f"   [!] AI PHÁT HIỆN LỪA ĐẢO (Điểm: {ai_result['risk_score']}/10)")
+                print(f"   [!] Lý do: {ai_result['reason']}")
+            else:
+                print("   [✓] AI đánh giá nội dung an toàn.")
+        else:
+            print("   [-] Email không có văn bản để AI phân tích.")
+
+        # ══ KẾT LUẬN + XỬ LÝ EMAIL ══════════════════════════════
         print("\n" + "="*50)
         if is_safe:
-            print("KẾT LUẬN: ✅ EMAIL AN TOÀN")
+            print("✅ KẾT LUẬN: EMAIL AN TOÀN")
         else:
-            total = total_vt_threats + total_typo_threats + total_auth_threats
-            print(f"KẾT LUẬN: 🚨 PHÁT HIỆN {total} MỐI ĐE DỌA")
+            total = (total_vt_threats + total_typo_threats
+                     + total_auth_threats + total_ai_threats)
+            print(f"🔥 KẾT LUẬN: PHÁT HIỆN {total} MỐI ĐE DỌA")
             print(f"  ├─ Auth (SPF/DKIM/DMARC): {total_auth_threats}")
             print(f"  ├─ Typosquatting:          {total_typo_threats}")
-            print(f"  └─ VirusTotal:             {total_vt_threats}")
+            print(f"  ├─ VirusTotal:             {total_vt_threats}")
+            print(f"  └─ AI Gemini (Ngữ cảnh):   {total_ai_threats}")
             print("  → Đã gửi cảnh báo Telegram!")
 
+            # ── Gán nhãn + chuyển vào thùng rác ─────────────────
+            print("\n🚨 ĐANG KÍCH HOẠT QUY TRÌNH CÁCH LY...")
+            if email_id:
+                mail_reader.mark_as_phishing(email_id)
+            else:
+                print("   [!] Không tìm thấy ID email để xử lý.")
+
 if __name__ == "__main__":
-    while True:
-        run_soar_pipeline()
-        print("\n[*] Đợi 4 giây trước chu kỳ tiếp theo...")
-        time.sleep(4)
+    try:
+        while True:
+            run_soar_pipeline()
+            print("\n[*] Đợi 4 giây trước chu kỳ tiếp theo...")
+            time.sleep(4)
+    except KeyboardInterrupt:
+        print("\n[!] Đã dừng hệ thống SOC.")
