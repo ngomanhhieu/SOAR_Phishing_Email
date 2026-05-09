@@ -2,7 +2,7 @@ from modules import mail_reader
 from modules import vt_scanner
 from modules import telegram_alert
 from modules import typosquatting_scanner
-from modules import email_authentication_checker as email_auth_checker
+from modules import email_authentication_checker
 from modules import ai_analyzer
 import time
 
@@ -19,7 +19,7 @@ def run_soar_pipeline():
     for incident in incidents:
         sender_email = incident['sender']
         msg_object   = incident.get('msg_object')
-        email_id     = incident.get('email_id')      # ← để xử lý thùng rác
+        email_id     = incident.get('email_id')
         print(f"\nĐANG PHÂN TÍCH SỰ CỐ TỪ: {sender_email}")
         print("-" * 50)
 
@@ -31,7 +31,7 @@ def run_soar_pipeline():
 
         # ══ GIAI ĐOẠN 0: SPF / DKIM / DMARC ════════════════════
         print("\n[Giai đoạn 0] Kiểm tra Email Authentication...")
-        auth_result = email_auth_checker.check_email_authentication(
+        auth_result = email_authentication_checker.check_email_authentication(
             sender_email, msg=msg_object
         )
         if auth_result["combined_risk"] in ("LOW", "MEDIUM", "HIGH"):
@@ -43,10 +43,9 @@ def run_soar_pipeline():
         print("\n[Giai đoạn 1] Quét URLs...")
         for url in incident.get('urls', []):
 
-            # 1a. Typosquatting — ensemble model, không cần threshold
+            # Lỗi 1 đã sửa: bỏ similarity_threshold
             typo_result = typosquatting_scanner.scan_typosquatting(url)
 
-            # 1b. VirusTotal
             vt_score = vt_scanner.scan_ioc("url", url)
             time.sleep(15)
 
@@ -117,7 +116,7 @@ def run_soar_pipeline():
             print(f"  └─ AI Gemini (Ngữ cảnh):   {total_ai_threats}")
             print("  → Đã gửi cảnh báo Telegram!")
 
-            # ── Gán nhãn + chuyển vào thùng rác ─────────────────
+            # Lỗi 2+3 đã sửa: dùng đúng tên hàm + dùng email_id đã lấy sẵn
             print("\n🚨 ĐANG KÍCH HOẠT QUY TRÌNH CÁCH LY...")
             if email_id:
                 mail_reader.mark_as_phishing(email_id)

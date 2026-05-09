@@ -13,16 +13,15 @@ def load_config(config_path=None):
         config_path = os.path.join(base_dir, "config.json")
     with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
-config = load_config()
 
-USERNAME = config["email"]["username"]
+config       = load_config()
+USERNAME     = config["email"]["username"]
 APP_PASSWORD = config["email"]["app_password"]
-IMAP_SERVER = config["email"]["imap_server"]
+IMAP_SERVER  = config["email"]["imap_server"]
 
-# 1. Danh sách trắng (Whitelist)
-WHITELIST = []
-# 2. Từ khóa nhận diện thư quảng cáo/spam hợp pháp
+WHITELIST     = []
 SPAM_KEYWORDS = ['unsubscribe', 'hủy đăng ký', 'từ chối nhận', 'opt out', 'view in browser']
+
 
 def decode_mime_words(s):
     if not s: return ""
@@ -34,6 +33,31 @@ def decode_mime_words(s):
         else:
             result.append(word)
     return "".join(result)
+
+
+# ═══════════════════════════════════════════════════════
+# Vấn đề 2 đã sửa: chuyển hàm lên TRƯỚC if __main__
+# Vấn đề 3 đã sửa: đổi tên thành mark_as_phishing
+#                   để khớp với lời gọi trong main.py
+# ═══════════════════════════════════════════════════════
+def mark_as_phishing(email_id):
+    """
+    Chuyển email vào thùng rác Gmail bằng cách gán nhãn \\Trash.
+    Tên hàm đồng nhất với lời gọi trong main.py.
+    """
+    try:
+        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+        mail.login(USERNAME, APP_PASSWORD)
+        mail.select("inbox")
+
+        # Gán nhãn Trash — cú pháp đặc trị của Gmail IMAP
+        mail.store(email_id, '+X-GM-LABELS', '\\Trash')
+
+        mail.logout()
+        print(f"   [✓] Đã chuyển email vào thùng rác thành công!")
+    except Exception as e:
+        print(f"   [ERROR] Lỗi khi cách ly email: {e}")
+
 
 def get_unread_emails_and_extract_iocs():
     print("[*] Hệ thống SOC đang kiểm tra hộp thư...")
@@ -54,41 +78,37 @@ def get_unread_emails_and_extract_iocs():
             res, msg_data = mail.fetch(e_id, "(RFC822)")
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
+                    msg    = email.message_from_bytes(response_part[1])
                     sender = decode_mime_words(msg.get("From"))
-                    
-                    body = ""
+
+                    body               = ""
                     attachments_hashes = []
-                    
-                    # Duyệt qua các phần của email (Body và File đính kèm)
+
                     for part in msg.walk():
                         content_type = part.get_content_type()
-                        disposition = str(part.get("Content-Disposition"))
+                        disposition  = str(part.get("Content-Disposition"))
 
-                        # A. Lấy nội dung văn bản
                         if content_type == "text/plain" and "attachment" not in disposition:
                             body += part.get_payload(decode=True).decode(errors='ignore')
-                        
-                        # B. Xử lý FILE ĐÍNH KÈM (Attachment)
                         elif "attachment" in disposition:
                             file_data = part.get_payload(decode=True)
                             if file_data:
-                                # Tính toán SHA-256 (Dấu vân tay của file)
                                 sha256_hash = hashlib.sha256(file_data).hexdigest()
-                                filename = decode_mime_words(part.get_filename())
-                                attachments_hashes.append({"filename": filename, "hash": sha256_hash})
+                                filename    = decode_mime_words(part.get_filename())
+                                attachments_hashes.append({
+                                    "filename": filename,
+                                    "hash":     sha256_hash
+                                })
                                 print(f"   [!] Tìm thấy file: {filename} (SHA256: {sha256_hash})")
 
-                    # 3. KIỂM TRA SPAM/QUẢNG CÁO (Filtering)
                     if any(key in body.lower() for key in SPAM_KEYWORDS):
-                        print(f"   [i] Bỏ qua email từ {sender} (Nhận diện: Thư quảng cáo/Marketing).")
+                        print(f"   [i] Bỏ qua email từ {sender} (Nhận diện: Thư quảng cáo)")
                         mail.store(e_id, '+FLAGS', '\\Seen')
                         continue
 
-                    # 4. TRÍCH XUẤT URL & IP
                     url_pattern = r'(?:https?://)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:/[^\s<>"\']*)?'
-                    raw_urls = set(re.findall(url_pattern, body))
-                    
+                    raw_urls    = set(re.findall(url_pattern, body))
+
                     valid_urls = set()
                     for u in raw_urls:
                         u = u.rstrip(".,;:]")
@@ -96,22 +116,19 @@ def get_unread_emails_and_extract_iocs():
                             u = "http://" + u
                         valid_urls.add(u)
 
-                    # Regex cho IPv4 trần
-                    ips = set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', body))
-                    
-                    # Lọc Whitelist (hiện tại rỗng nên lấy hết)
+                    ips        = set(re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', body))
                     clean_urls = [u for u in valid_urls if not any(sd in u for sd in WHITELIST)]
 
-                    # Gói dữ liệu (IOCs)
                     if clean_urls or ips or attachments_hashes:
                         print(f"-> Phân tích email từ: {sender}")
                         extracted_data.append({
-                            "sender": sender,
-                            "urls": clean_urls,
-                            "ips": list(ips),
+                            "sender":      sender,
+                            "email_id":    e_id,    
+                            "msg_object":  msg,
+                            "body":        body,
+                            "urls":        clean_urls,
+                            "ips":         list(ips),
                             "file_hashes": attachments_hashes,
-                            "msg_object": msg,
-                            "body": body,
                         })
                         mail.store(e_id, '+FLAGS', '\\Seen')
 
@@ -122,26 +139,14 @@ def get_unread_emails_and_extract_iocs():
         print(f"[ERROR]: {e}")
         return []
 
+
 if __name__ == "__main__":
     results = get_unread_emails_and_extract_iocs()
-    print("\n[✓] DANH SÁCH IOCs CHUYỂN CHO SINH VIÊN B:")
+    print("\n[✓] DANH SÁCH IOCs:")
     import json
-    print(json.dumps(results, indent=4, ensure_ascii=False))
-
-
-def delete_phishing_email(email_id):
-    """
-    Hàm tự động truy cập lại vào Gmail và dán nhãn Thùng rác (\Trash) cho thư lừa đảo.
-    """
-    try:
-        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
-        mail.login(USERNAME, APP_PASSWORD)
-        mail.select("inbox")
-        
-        # Cú pháp ĐẶC TRỊ của Gmail: Ép dán nhãn Thùng rác vào bức thư
-        mail.store(email_id, '+X-GM-LABELS', '\\Trash')
-        
-        mail.logout()
-        print(f" Đã xóa email lừa đảo thành công!")
-    except Exception as e:
-        print(f" Lỗi khi cách ly email: {e}")
+    # Bỏ msg_object và email_id khi print vì không serialize được
+    print(json.dumps(
+        [{k: v for k, v in r.items() if k not in ('msg_object', 'email_id')}
+         for r in results],
+        indent=4, ensure_ascii=False
+    ))
