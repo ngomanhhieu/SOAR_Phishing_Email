@@ -1,0 +1,27 @@
+# Data and results
+*.csv
+*.pkl
+*.log
+vt_hash_raw_results.json
+confusion_matrix.png
+dataset_statistics.txt
+
+# Configuration files (contains API keys)
+config.json
+.env
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE and temporary files
+.vscode/
+.idea/
+tempCodeRunnerFile.py
+.DS_Store
+
+# Virtual environments
+venv/
+env/
+.venv/

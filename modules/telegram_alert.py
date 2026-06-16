@@ -91,13 +91,13 @@ def send_combined_alert(email: str, url: str, vt_score: int, typo_result: dict =
         3 if vt_score >= 10 else 2 if vt_score >= 5 else 1 if vt_score > 0 else 0
     )
     risk_str   = {0: "SAFE", 1: "LOW", 2: "MEDIUM", 3: "HIGH"}[combined]
-    risk_emoji = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢", "SAFE": "✅"}[risk_str]
+    risk_emoji = {"HIGH": "", "MEDIUM": "", "LOW": "", "SAFE": ""}[risk_str]
 
     # Phần VirusTotal
     vt_section = (
-        f"*🔬 VirusTotal:* `{vt_score}` engines báo độc hại\n"
+        f"* VirusTotal:* `{vt_score}` engines báo độc hại\n"
         if vt_score > 0
-        else "*🔬 VirusTotal:* ✅ Sạch\n"
+        else "* VirusTotal:* Sạch\n"
     )
 
     # Phần Typosquatting — hiển thị chi tiết 4 thành phần
@@ -105,10 +105,10 @@ def send_combined_alert(email: str, url: str, vt_score: int, typo_result: dict =
     if has_typo:
         detail = typo_result.get("detail_scores", {})
         total  = typo_result.get("total_score", 0)
-        homoglyph_flag = "⚠️ Homoglyph detected" if typo_result.get("has_homoglyph") else ""
+        homoglyph_flag = " Homoglyph detected" if typo_result.get("has_homoglyph") else ""
 
         typo_section = (
-            f"\n*🕵️ Typosquatting:*\n"
+            f"\n* Typosquatting:*\n"
             f"  Domain: `{typo_result['domain']}`\n"
             f"  Giống: `{typo_result.get('similar_to', 'N/A')}`\n"
             f"  Tổng score: `{total:.2f}` {homoglyph_flag}\n"
@@ -119,7 +119,7 @@ def send_combined_alert(email: str, url: str, vt_score: int, typo_result: dict =
         )
 
     message = (
-        f"🚨 *THREAT ALERT*\n\n"
+        f" *THREAT ALERT*\n\n"
         f"*Sender:* `{email}`\n"
         f"*URL:* `{url}`\n\n"
         f"{vt_section}"
@@ -170,7 +170,7 @@ def send_auth_alert(email: str, auth_result: dict):
     )
 
     message = (
-        f"🛡️ *EMAIL AUTH ALERT*\n\n"
+        f" *EMAIL AUTH ALERT*\n\n"
         f"*Sender:* `{email}`\n"
         f"*Domain:* `{d.get('domain', 'N/A')}`\n\n"
         f"{header_section}"

@@ -104,7 +104,7 @@ def load_tranco_list(top_n: int = TOP_N) -> list:
 
     with open(CACHE_FILE, "wb") as f:
         pickle.dump(domains, f)
-    print(f"[✓] Đã tải và cache {len(domains)} domains")
+    print(f"Đã tải và cache {len(domains)} domains")
     return domains
 
 
@@ -121,8 +121,8 @@ def build_index(domains: list) -> dict:
 print("[*] Khởi tạo Typosquatting Scanner (Ensemble Model)...")
 TOP_DOMAINS  = load_tranco_list(TOP_N)
 DOMAIN_INDEX = build_index(TOP_DOMAINS)
-TOP_SET      = set(TOP_DOMAINS[:10_000])
-print("[✓] Scanner sẵn sàng")
+TOP_SET      = set(TOP_DOMAINS)
+print("Scanner sẵn sàng")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -165,7 +165,7 @@ def weighted_edit_distance(s1: str, s2: str) -> float:
     - Thay thế thông thường: cost cao = ít liên quan hơn
     - Thêm/xóa ký tự: cost trung bình
 
-    Score cuối: 0.0 (giống hệt) → 1.0+ (rất khác nhau)
+    Score cuối: 0.0 (giống hệt) → 1.0+ 
     """
     COST_HOMOGLYPH = 0.1   # Cố ý lừa mắt → nguy hiểm nhất → cost thấp nhất
     COST_KEYBOARD  = 0.5   # Typo tự nhiên → ít nguy hiểm hơn
@@ -385,11 +385,11 @@ def classify_risk(total_score: float, has_homoglyph: bool) -> str:
     Nếu homoglyph score cao → tự động nâng risk vì đây là
     dấu hiệu TẤN CÔNG CỐ Ý, không phải typo tự nhiên.
     """
-    if has_homoglyph or total_score >= 0.80:
+    if has_homoglyph or total_score >= 0.85:
         return "HIGH"
-    elif total_score >= 0.65:
+    elif total_score >= 0.70:
         return "MEDIUM"
-    elif total_score >= 0.50:
+    elif total_score >= 0.60:
         return "LOW"
     else:
         return "SAFE"
@@ -419,7 +419,7 @@ def scan_typosquatting(url: str) -> dict:
             "error":        "Không trích xuất được domain"
         }
 
-    print(f"   [*] Ensemble scan: {domain}")
+    print(f"Ensemble scan: {domain}")
 
     # Bước 1: Domain hợp lệ trong top 10k → SAFE ngay
     if domain in TOP_SET:
@@ -465,14 +465,14 @@ def scan_typosquatting(url: str) -> dict:
 
     # In kết quả từng thành phần
     if best_match and risk_level != "SAFE":
-        print(f"   → NGHI NGỜ: giống '{best_match}'")
+        print(f"   NGHI NGỜ: giống '{best_match}'")
         print(f"      Edit Distance : {best_detail.get('edit_distance', 0):.2f} (×{WEIGHTS['edit_distance']})")
         print(f"      Homoglyph     : {best_detail.get('homoglyph', 0):.2f} (×{WEIGHTS['homoglyph']})")
         print(f"      Keyboard      : {best_detail.get('keyboard', 0):.2f} (×{WEIGHTS['keyboard']})")
         print(f"      Phonetic      : {best_detail.get('phonetic', 0):.2f} (×{WEIGHTS['phonetic']})")
         print(f"      TOTAL SCORE   : {best_total:.2f} → {risk_level}")
     else:
-        print(f"   → Score cao nhất: {best_total:.2f} với '{best_match}' → SAFE")
+        print(f"    Score cao nhất: {best_total:.2f} với '{best_match}' → SAFE")
 
     return {
         "domain":        domain,

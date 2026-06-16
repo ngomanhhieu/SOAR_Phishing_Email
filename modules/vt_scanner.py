@@ -22,7 +22,7 @@ HEADERS = {
 
 def scan_ioc(ioc_type, ioc_value):
     """Hàm đa năng: Quét URL, IP hoặc File Hash"""
-    print(f"   [*] VirusTotal đang phân tích {ioc_type.upper()}: {ioc_value}")
+    print(f"VirusTotal đang phân tích {ioc_type.upper()}: {ioc_value}")
     
     # Định tuyến URL cho API v3 tùy theo loại dữ liệu
     if ioc_type == "url":

@@ -210,7 +210,7 @@ def extract_auth_from_header(msg) -> dict:
     elif not_found >= 2:  risk = "LOW"
     else:                 risk = "SAFE"
 
-    print(f"   [Tầng 2 - Header] SPF={spf} | DKIM={dkim} | DMARC={dmarc} → {risk}")
+    print(f"   Tầng 2 - Header SPF={spf} | DKIM={dkim} | DMARC={dmarc} → {risk}")
     return {
         "source": "email_header",
         "spf": spf, "dkim": dkim, "dmarc": dmarc,
@@ -264,8 +264,8 @@ def check_dns_auth(sender: str, sender_ip: str = "") -> dict:
     if not domain:
         return {"error": "Không trích xuất được domain", "domain": None}
 
-    print(f"   [Tầng 1 - DNS] Kiểm tra domain: {domain}"
-          + (f" | sender IP: {sender_ip}" if sender_ip else " | (không có IP)"))
+    print(f"   Tầng 1 - DNS Kiểm tra domain: {domain}"
+          + (f" sender IP: {sender_ip}" if sender_ip else "  (không có IP)"))
 
     spf   = check_spf(domain, sender_ip)   # ← truyền IP vào
     dmarc = check_dmarc(domain)
@@ -277,8 +277,8 @@ def check_dns_auth(sender: str, sender_ip: str = "") -> dict:
     elif "WARN" in statuses or "UNKNOWN" in statuses: risk = "LOW"
     else:                              risk = "SAFE"
 
-    print(f"   [Tầng 1 - DNS] SPF={spf['status']} | DMARC={dmarc['status']} "
-          f"| DKIM={dkim['status']} → {risk}")
+    print(f"   Tầng 1 - DNS SPF={spf['status']}  DMARC={dmarc['status']} "
+          f" DKIM={dkim['status']}  {risk}")
 
     return {
         "source": "dns_lookup", "domain": domain,
@@ -287,11 +287,11 @@ def check_dns_auth(sender: str, sender_ip: str = "") -> dict:
     }
 
 def check_email_authentication(sender: str, msg=None) -> dict:
-    print(f"\n   [*] Kiểm tra Email Authentication: {sender}")
+    print(f"\n  Kiểm tra Email Authentication: {sender}")
 
     sender_ip     = extract_sender_ip(msg) if msg else ""
     if sender_ip:
-        print(f"   [*] Sender IP (từ Received header): {sender_ip}")
+        print(f"   Sender IP (từ Received header): {sender_ip}")
 
     header_result = extract_auth_from_header(msg) if msg else None
     dns_result    = check_dns_auth(sender, sender_ip)

@@ -1,8 +1,17 @@
 import google.generativeai as genai
+import json
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # 1. CẤU HÌNH API KEY 
-GEMINI_API_KEY ="AIzaSyBgvgVLpPxPT0ZomKw4UN8jwVCB1ziBGWg"
+def load_config(config_path=None):
+    if config_path is None:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        config_path = os.path.join(base_dir, "config.json")
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+config = load_config()
+GEMINI_API_KEY = config["gemini_api_key"]
 genai.configure(api_key=GEMINI_API_KEY)
 
 def analyze_email_intent(email_body):
@@ -44,9 +53,9 @@ def analyze_email_intent(email_body):
             # Ưu tiên tìm bản flash hoặc pro, nếu không có thì bốc luôn thằng đầu tiên trong danh sách
             flash_models = [m for m in available_models if 'flash' in m]
             valid_model = flash_models[0] if flash_models else available_models[0]
-            print(f"   [DEBUG-AI] Máy chủ Google cấp phép sử dụng Model: {valid_model}")
+            print(f" Máy chủ Google cấp phép sử dụng Model: {valid_model}")
         else:
-            print("   [!] Cảnh báo: Tài khoản API này không có quyền tạo văn bản!")
+            print("Cảnh báo: Tài khoản API này không có quyền tạo văn bản!")
 
         # Khởi tạo model với cái tên chuẩn xác 100% vừa lấy được
         model = genai.GenerativeModel(valid_model)
@@ -66,7 +75,7 @@ def analyze_email_intent(email_body):
         text = response.text.strip()
         
         # In ra màn hình xem con AI nó thực sự đang lảm nhảm cái gì
-        print(f"   [DEBUG-AI] Kết quả thô từ Gemini trả về:\n{text}\n")
+        print(f" Kết quả thô từ Gemini trả về:\n{text}\n")
         
         # Bóc tách kết quả
         is_phishing = "YES" in text.upper().split('\n')[0] # Chỉ quét chữ YES ở dòng đầu
@@ -86,5 +95,5 @@ def analyze_email_intent(email_body):
         return {"is_phishing": is_phishing, "risk_score": score, "reason": reason}
         
     except Exception as e:
-        print(f"   [!] Lỗi khi gọi AI Gemini: {e}")
+        print(f"Lỗi khi gọi AI Gemini: {e}")
         return {"is_phishing": False, "risk_score": 0, "reason": "Lỗi kết nối AI"}

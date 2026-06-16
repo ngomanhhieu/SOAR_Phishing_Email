@@ -35,16 +35,7 @@ def decode_mime_words(s):
     return "".join(result)
 
 
-# ═══════════════════════════════════════════════════════
-# Vấn đề 2 đã sửa: chuyển hàm lên TRƯỚC if __main__
-# Vấn đề 3 đã sửa: đổi tên thành mark_as_phishing
-#                   để khớp với lời gọi trong main.py
-# ═══════════════════════════════════════════════════════
 def mark_as_phishing(email_id):
-    """
-    Chuyển email vào thùng rác Gmail bằng cách gán nhãn \\Trash.
-    Tên hàm đồng nhất với lời gọi trong main.py.
-    """
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(USERNAME, APP_PASSWORD)
@@ -54,13 +45,13 @@ def mark_as_phishing(email_id):
         mail.store(email_id, '+X-GM-LABELS', '\\Trash')
 
         mail.logout()
-        print(f"   [✓] Đã chuyển email vào thùng rác thành công!")
+        print(f"Đã chuyển email vào thùng rác thành công!")
     except Exception as e:
         print(f"   [ERROR] Lỗi khi cách ly email: {e}")
 
 
 def get_unread_emails_and_extract_iocs():
-    print("[*] Hệ thống SOC đang kiểm tra hộp thư...")
+    print("Hệ thống đang kiểm tra hộp thư...")
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER)
         mail.login(USERNAME, APP_PASSWORD)
@@ -69,7 +60,7 @@ def get_unread_emails_and_extract_iocs():
         email_ids = messages[0].split()
 
         if not email_ids:
-            print("[-] Không có yêu cầu phân tích mới.")
+            print("Không có yêu cầu phân tích mới.")
             return []
 
         extracted_data = []
@@ -99,10 +90,10 @@ def get_unread_emails_and_extract_iocs():
                                     "filename": filename,
                                     "hash":     sha256_hash
                                 })
-                                print(f"   [!] Tìm thấy file: {filename} (SHA256: {sha256_hash})")
+                                print(f"Tìm thấy file: {filename} (SHA256: {sha256_hash})")
 
                     if any(key in body.lower() for key in SPAM_KEYWORDS):
-                        print(f"   [i] Bỏ qua email từ {sender} (Nhận diện: Thư quảng cáo)")
+                        print(f"Bỏ qua email từ {sender} (Nhận diện: Thư quảng cáo)")
                         mail.store(e_id, '+FLAGS', '\\Seen')
                         continue
 
@@ -120,7 +111,7 @@ def get_unread_emails_and_extract_iocs():
                     clean_urls = [u for u in valid_urls if not any(sd in u for sd in WHITELIST)]
 
                     if clean_urls or ips or attachments_hashes:
-                        print(f"-> Phân tích email từ: {sender}")
+                        print(f"Phân tích email từ: {sender}")
                         extracted_data.append({
                             "sender":      sender,
                             "email_id":    e_id,    
@@ -136,13 +127,13 @@ def get_unread_emails_and_extract_iocs():
         return extracted_data
 
     except Exception as e:
-        print(f"[ERROR]: {e}")
+        print(f"ERROR: {e}")
         return []
 
 
 if __name__ == "__main__":
     results = get_unread_emails_and_extract_iocs()
-    print("\n[✓] DANH SÁCH IOCs:")
+    print("\nDANH SÁCH IOCs:")
     import json
     # Bỏ msg_object và email_id khi print vì không serialize được
     print(json.dumps(
